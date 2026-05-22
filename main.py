@@ -1,6 +1,6 @@
 import cv2
 import time
-from pioneer_sdk2 import Pioneer, Camera, CameraType
+from pioneer_sdk2 import Pioneer, Camera, CameraType, ServoCamera, ServoPriority
 
 def main():
     pioneer_mini = Pioneer()
@@ -15,7 +15,11 @@ def main():
     pioneer_mini.takeoff()
 
     # Шаг 2 -- подъём дрона на определённую высоту.
-    pioneer_mini.go_to_global_point(0, 0, 4)
+    pioneer_mini.go_to_local_point(0, 0, 4)
+
+    # Как повернуть камеру?
+    servo_camera = ServoCamera()
+    servo_camera.set_angle(-80, ServoPriority.HIGH)
 
     # Шаг 3 -- получаем кадр для вывода на экран ПК.
     frame = camera.get_cv_frame()
@@ -26,14 +30,11 @@ def main():
     print(waypoints)
     
     # Шаг 5 -- спускаемся обратно.
-    pioneer_mini.go_to_global_point(0, 0, 0)
+    pioneer_mini.go_to_local_point(0, 0, -4)
 
     # Шаг 6 -- посадка дрона.
     pioneer_mini.land()
     pioneer_mini.disarm()
-
-    # Корректное закрытие окон после выхода из цикла
-    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main()
