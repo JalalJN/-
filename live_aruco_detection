@@ -1,0 +1,136 @@
+import cv2
+import numpy as np
+
+ARENA_SIZE = 3.0
+
+TARGET_DICTIONARY = {
+    3:   {"type": "allowed",   "letter": "И"},
+    23:  {"type": "allowed",   "letter": "Т"},
+    42:  {"type": "forbidden", "letter": "М"},
+    117: {"type": "forbidden", "letter": "О"},
+}
+
+
+def detect_start_coordinate(frame):
+    """
+    Определение координаты старта дрона.
+    Предположение: камера смотрит вниз, центр кадра соответствует положению дрона.
+    """
+    H, W = frame.shape[:2]
+
+    start_px = W // 2
+    start_py = H // 2
+
+    start_x_meter = start_px / W * ARENA_SIZE
+    start_y_meter = start_py / H * ARENA_SIZE
+
+    return start_x_meter, start_y_meter
+
+
+def detect_aruco_targets(frame, min_area=50000):
+    """
+    Определение ArUco-маркеров на текущем кадре.
+
+    Возвращает список:
+    [
+        {
+            "id": 3,
+            "x": 0.52,
+            "y": 0.75,
+            "type": "allowed",
+            "letter": "И",
+            "area": 89401.0
+        }
+    ]
+    """
+    H, W = frame.shape[:2]
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
+    parameters = cv2.aruco.DetectorParameters()
+    detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+
+    corners, ids, rejected = detector.detectMarkers(gray)
+
+    found_targets = []
+
+    if ids is None:
+        return found_targets
+
+    for i, marker_id in enumerate(ids.flatten()):
+        pts = corners[i][0]
+        area = cv2.contourArea(pts)
+
+        if area < min_area:
+            continue
+
+        marker_id = int(marker_id)
+
+        cx = int(np.mean(pts[:, 0]))
+        cy = int(np.mean(pts[:, 1]))
+
+        x_meter = cx / W * ARENA_SIZE
+        y_meter = cy / H * ARENA_SIZE
+
+        if marker_id in TARGET_DICTIONARY:
+            target_type = TARGET_DICTIONARY[marker_id]["type"]
+            letter = TARGET_DICTIONARY[marker_id]["letter"]
+        else:
+            target_type = "unknown"
+            letter = "?"
+
+        found_targets.append({
+            "id": marker_id,
+            "x": x_meter,
+            "y": y_meter,
+            "type": target_type,
+            "letter": letter,
+            "area": float(area)
+        })
+
+    return found_targets
+
+
+def process_frame(frame):
+    """
+    Главная функция для отдела навигации.
+    На вход получает кадр с камеры.
+    На выход возвращает стартовую координату и найденные маркеры.
+    """
+    start_coordinate = detect_start_coordinate(frame)
+    markers = detect_aruco_targets(frame)
+
+    return {
+        "start_coordinate": start_coordinate,
+        "markers": markers
+    }
+
+
+if __name__ == "__main__":
+    cap = cv2.VideoCapture(0)
+
+    if not cap.isOpened():
+        print("ERROR: camera not opened")
+        exit()
+
+    while True:
+        ret, frame = cap.read()
+
+        if not ret:
+            print("ERROR: frame not received")
+            break
+
+        result = process_frame(frame)
+
+        print("START:", result["start_coordinate"])
+        print("MARKERS:", result["markers"])
+        print("========================")
+
+        cv2.imshow("Live ArUco detection", frame)
+
+        if cv2.waitKey(1) & 0xFF == 27:
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
