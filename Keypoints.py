@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 
-def save_map_features(image_path, output_file="map_features.npz"):
+def save_map_features(image_path, output_file="map_data.npz"):
     # 1. Đọc ảnh bản đồ
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
